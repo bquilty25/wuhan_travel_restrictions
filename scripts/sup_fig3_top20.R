@@ -1,6 +1,6 @@
 # Script to make supplementary figure 2, pairwise travel flux from Wuhan to largest 20 cities (by population)
 
-pacman::p_load(tidyverse,lubridate,sf,RColorBrewer,imputeTS, tsibble, cowplot, ggpubr)
+pacman::p_load(tidyverse,lubridate,sf,imputeTS, tsibble, cowplot, ggpubr)
 
 # Read in Baidu overall index mobilty leaving Wuhan 2019 & 2020
 baidu <- read_csv("data/scaling_baidu_mobility_index.csv") %>% 
@@ -146,10 +146,18 @@ trav_from_wuhan <- function(prf_code, scale){
 }
 
 
-#Top 20 population plot
-top_codes <- read_csv("data/codes_20.csv")
+  
 
-top_n <- top_codes[1] %>% pull()
+#Top 20 population plot
+top_codes <- read_csv("data/prf_pop_2018.csv") %>% 
+  mutate(name = word(PYNAME)) %>% 
+  filter(province != "Hubei") %>% 
+  head(20)
+
+#top_codes <- read_csv("data/codes_20.csv")
+
+top_n <- top_codes[1] %>% 
+  pull()
 
 top_list <- list()
 
@@ -167,19 +175,22 @@ for (i in 1:length(top_n)) { top_list[[i]] <-
 
 }
 
+pop_order <- top_codes[9] %>% 
+  pull()
+
 #S1
 S1 <- bind_rows(top_list) %>% 
   left_join(., top_codes, by=c("code"= "CNTY_CODE")) %>% 
-  mutate(name = factor(name, levels = rev(c("Shanghai", "Beijing", "Chongqing", "Tianjin", "Guangzhou", "Shenzhen", "Chengdu", "Nanjing",
-                                            "Xi'an", "Hangzhou","Dongguan", "Foshan", "Shenyang","Harbin", "Qingdao", "Dalian","Jinan", "Zhengzhou", 
-                                            "Changsha", "Kunming")))) %>% ggplot(aes(x=restrict_day, y= name)) +
+  mutate(name = factor(name, levels = rev(pop_order))) %>% 
+  ggplot(aes(x=restrict_day, y= name)) +
   geom_tile(aes(x=restrict_day, y= name, fill= index_flow20)) +
-  coord_cartesian(xlim = c(-28,28)) +
+  coord_cartesian(xlim = c(-21.5,21.5)) +
   scale_fill_viridis_c(name="Baidu outflow index   ",option="inferno", begin = 0.05, end = 0.9,breaks=c(0,0.04,0.08,0.12),limits= c(0,0.1352029),
                        guide = guide_coloursteps(even.steps = F, show.limits = T,barwidth=unit(7,"cm"))) +
-  geom_segment(aes(x = 0, xend = 0, y = 0.5, yend = 20.5, colour = "Travel restrictions and physical distancing enacted"), linetype = "dashed") + 
-  geom_segment(aes(x = 2, xend = 2, y = 0.5, yend = 20.5, color = "Lunar New Year"), linetype = "dotted")+
-  scale_color_manual(name="", values=c("grey70","red"))+
+  geom_segment(aes(x = 0.5, xend = 0.5, y = 0.5, yend = 20.5, color = "Travel restrictions and physical distancing enacted", linetype = "dashed"), size = 0.8)+
+  geom_segment(aes(x = 2.5, xend = 2.5, y = 0.5, yend = 20.5, color = "Lunar New Year",linetype = "dotted"), size = 0.8)+
+  scale_color_manual(name="", labels= c("Travel restriction and other NPIs enacted", "Lunar New Year"), values=c("grey70", "grey70"))+
+  scale_linetype_manual(name="", labels= c("Travel restriction and other NPIs enacted", "Lunar New Year"), values=c("dashed", "dotted"))+
   ggtitle("Scenario 1: Chunyun & travel restrictions (Observed 2020)") +
   ylab("")+
   xlab("Days Since Travel Restrictions") +
@@ -200,14 +211,13 @@ S1 <- bind_rows(top_list) %>%
 #S2
 S2 <- bind_rows(top_list) %>% 
   left_join(., top_codes, by=c("code"= "CNTY_CODE")) %>% 
-  mutate(name = factor(name, levels = rev(c("Shanghai", "Beijing", "Chongqing", "Tianjin", "Guangzhou", "Shenzhen", "Chengdu", "Nanjing",
-                                            "Xi'an", "Hangzhou","Dongguan", "Foshan", "Shenyang","Harbin", "Qingdao", "Dalian","Jinan", "Zhengzhou", 
-                                            "Changsha", "Kunming")))) %>% ggplot(aes(x=restrict_day, y= name)) +
+  mutate(name = factor(name, levels = rev(pop_order))) %>% 
+  ggplot(aes(x=restrict_day, y= name)) +
   geom_tile(aes(x=restrict_day, y= name, fill= index_flow19)) +
-  coord_cartesian(xlim = c(-28,28)) +
+  coord_cartesian(xlim = c(-21.5,21.5)) +
   scale_fill_viridis_c(name="Baidu outflow index   ",option="inferno", begin = 0.05, end = 0.9,breaks=c(0,0.04,0.08,0.12),limits= c(0,0.1352029),
                        guide = guide_coloursteps(even.steps = F, show.limits = T,barwidth=unit(7,"cm"))) +
-  geom_segment(aes(x = 2, xend = 2, y = 0.5, yend = 20.5, color = "Lunar New Year"), linetype = "dotted")+
+  geom_segment(aes(x = 2.5, xend = 2.5, y = 0.5, yend = 20.5, color = "Lunar New Year"), size= 0.8, linetype = "dotted")+
   scale_color_manual(name="", values=c("grey70","red"))+
   ggtitle("Scenario 2: Chunyun & no travel restrictions (Observed 2019)") +
   ylab("")+
@@ -229,16 +239,16 @@ S2 <- bind_rows(top_list) %>%
 #S3
 S3 <- bind_rows(top_list) %>% 
   left_join(., top_codes, by=c("code"= "CNTY_CODE")) %>% 
-  mutate(name = factor(name, levels = rev(c("Shanghai", "Beijing", "Chongqing", "Tianjin", "Guangzhou", "Shenzhen", "Chengdu", "Nanjing",
-                                            "Xi'an", "Hangzhou","Dongguan", "Foshan", "Shenyang","Harbin", "Qingdao", "Dalian","Jinan", "Zhengzhou", 
-                                            "Changsha", "Kunming")))) %>% ggplot(aes(x=restrict_day, y= name)) +
+  mutate(name = factor(name, levels = rev(pop_order))) %>% 
+  ggplot(aes(x=restrict_day, y= name)) +
   geom_tile(aes(x=restrict_day, y= name, fill= index_flow20non)) +
-  coord_cartesian(xlim = c(-28,28)) +
+  coord_cartesian(xlim = c(-21.5,21.5)) +
   scale_fill_viridis_c(name="Baidu outflow index   ",option="inferno", begin = 0.05, end = 0.9,breaks=c(0,0.04,0.08,0.12),limits= c(0,0.1352029),
                        guide = guide_coloursteps(even.steps = F, show.limits = T,barwidth=unit(7,"cm"))) +
-  geom_segment(aes(x = 0, xend = 0, y = 0.5, yend = 20.5, colour = "Travel restrictions and physical distancing enacted"), linetype = "dashed") + 
-  geom_segment(aes(x = 2, xend = 2, y = 0.5, yend = 20.5, color = "Lunar New Year"), linetype = "dotted")+
-  scale_color_manual(name="", values=c("grey70","red"))+
+  geom_segment(aes(x = 0.5, xend = 0.5, y = 0.5, yend = 20.5, color = "Travel restrictions and physical distancing enacted", linetype = "dashed"), size = 0.8)+
+  geom_segment(aes(x = 2.5, xend = 2.5, y = 0.5, yend = 20.5, color = "Lunar New Year",linetype = "dotted"), size = 0.8)+
+  scale_color_manual(name="", labels= c("Travel restriction and other NPIs enacted", "Lunar New Year"), values=c("grey70", "grey70"))+
+  scale_linetype_manual(name="", labels= c("Travel restriction and other NPIs enacted", "Lunar New Year"), values=c("dashed", "dotted"))+
   ggtitle("Scenario 3: No Chunyun & travel restrictions (Hypothetical)") +
   ylab("")+
   xlab("Days Since Travel Restrictions") +
@@ -260,14 +270,13 @@ S3 <- bind_rows(top_list) %>%
 #S4
 S4 <- bind_rows(top_list) %>% 
   left_join(., top_codes, by=c("code"= "CNTY_CODE")) %>% 
-  mutate(name = factor(name, levels = rev(c("Shanghai", "Beijing", "Chongqing", "Tianjin", "Guangzhou", "Shenzhen", "Chengdu", "Nanjing",
-                                            "Xi'an", "Hangzhou","Dongguan", "Foshan", "Shenyang","Harbin", "Qingdao", "Dalian","Jinan", "Zhengzhou", 
-                                            "Changsha", "Kunming")))) %>% ggplot(aes(x=restrict_day, y= name)) +
+  mutate(name = factor(name, levels = rev(pop_order))) %>% 
+  ggplot(aes(x=restrict_day, y= name)) +
   geom_tile(aes(x=restrict_day, y= name, fill= index_flow19non)) +
-  coord_cartesian(xlim = c(-28,28)) +
+  coord_cartesian(xlim = c(-21.5,21.5)) +
   scale_fill_viridis_c(name="Baidu outflow index   ",option="inferno", begin = 0.05, end = 0.9,breaks=c(0,0.04,0.08,0.12),limits= c(0,0.1352029),
                        guide = guide_coloursteps(even.steps = F, show.limits = T,barwidth=unit(7,"cm"))) +
-  geom_segment(aes(x = 2, xend = 2, y = 0.5, yend = 20.5, color = "Lunar New Year"), linetype = "dotted")+
+  geom_segment(aes(x = 2.5, xend = 2.5, y = 0.5, yend = 20.5, color = "Lunar New Year"), size= 0.8, linetype = "dotted")+
   scale_color_manual(name="", values=c("grey70","red"))+
   ggtitle("Scenario 4: No Chunyun & no travel restrictions (Hypothetical)") +
   ylab("")+
@@ -287,9 +296,5 @@ S4 <- bind_rows(top_list) %>%
   )
 
 
-ggarrange(S1,S3,S2,S4, common.legend = TRUE, legend = "bottom") #+
-  #ggsave("output/Sup_2.png", dpi= 320, width = 297, height = 190, units = "mm")
-
-
-
-
+ggarrange(S1,S3,S2,S4, common.legend = TRUE, legend = "bottom") +
+  ggsave("output/Sup_fig3.png", dpi= 320, width = 297, height = 190, units = "mm")

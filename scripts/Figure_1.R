@@ -35,17 +35,14 @@ baidu_comp <- baidu %>%
   mutate(baidu_index20non = if_else(Date > as.Date("2020-01-23"), baidu_index20, baidu_index19non)) %>% 
   mutate(restrict_day = c(-61:0, 1:52))
 
-write_csv(baidu_comp, "data/baidu_scenarios.csv")
-
 
 baidu_comp %>%
-  mutate(restrict_day = c(-61:0, 1:52)) %>%
   pivot_longer(cols = c("baidu_index20", "baidu_index19", "baidu_index19non", "baidu_index20non"), names_to = "year", values_to = "index") %>%
   mutate(year = factor(year, levels = rev(c("baidu_index20","baidu_index19", "baidu_index20non", "baidu_index19non")))) %>%
   ggplot(aes(x=restrict_day, y= year, fill= index))+
   geom_tile(aes(x=restrict_day, y= year, fill= index)) +
-  #theme_cowplot()+
-  coord_cartesian(xlim = c(-28,28), ylim = c(1,4))+
+
+  coord_cartesian(xlim = c(-21.5,21.5), ylim = c(1,4))+
   scale_fill_viridis_c(name="Baidu outflow index   ",option="inferno", begin = 0.05, end = 0.9,breaks=c(0,2,4,6,8,10,12),
                        guide = guide_coloursteps(even.steps = F, show.limits = T,barwidth=unit(7,"cm"))) +
   scale_y_discrete(labels = rev(c("Scenario 1:\nChunyun &\ntravel restrictions\n(Observed 2020)",
@@ -56,9 +53,10 @@ baidu_comp %>%
   xlab("Days Since Travel Restrictions") +
   labs(color = "Year")+
   scale_x_continuous(breaks = scales::pretty_breaks(n = 10)) +
-  geom_segment(aes(x = 0, xend = 0, y = 0.5, yend = 4.5, color = "Travel restrictions and physical distancing enacted"), linetype = "dashed", alpha= 0.1)+
-  geom_segment(aes(x = 2, xend = 2, y = 0.5, yend = 4.5, color = "Lunar New Year"), linetype = "dotted")+
-  scale_color_manual(name="", values=c("grey70", "red"))+
+  geom_segment(aes(x = 0.5, xend = 0.5, y = 0.5, yend = 4.5, color = "Travel restrictions and physical distancing enacted", linetype = "dashed"), size = 1.5)+
+  geom_segment(aes(x = 2.5, xend = 2.5, y = 0.5, yend = 4.5, color = "Lunar New Year",linetype = "dotted"), size = 1.2)+
+  scale_color_manual(name="", labels= c("Travel restriction and other NPIs enacted", "Lunar New Year"), values=c("grey70", "grey70"))+
+  scale_linetype_manual(name="", labels= c("Travel restriction and other NPIs enacted", "Lunar New Year"), values=c("dashed", "dotted"))+
   geom_rect(aes(xmin = -30.8, xmax = 30.8, ymin = 2.4975, ymax= 2.5025), color= "white", fill= "white")+
   theme(axis.text.y = element_text(hjust = 0, size = 10),
         axis.ticks.y =element_blank(),
@@ -69,9 +67,9 @@ baidu_comp %>%
         legend.text = element_text(size = 11),
         legend.key = element_rect(fill = "white"),
         panel.background = element_blank()
-  ) #+
-  #ggsave("output/Fig_1.png",
-  #       width = 297,
-  #       height = 160,
-  #       dpi = 320,
-  #       units = "mm")
+  ) +
+  ggsave("output/Fig_1.png",
+         width = 297,
+         height = 160,
+         dpi = 320,
+         units = "mm")
