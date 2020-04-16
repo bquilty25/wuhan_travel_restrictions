@@ -63,6 +63,3 @@ cao <- read_csv("data/cao2020.csv", col_names = FALSE) %>%
 # Scaling factor 138412.01
 
 ###############
-
-
-

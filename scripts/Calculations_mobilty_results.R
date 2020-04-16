@@ -52,7 +52,26 @@ post <- baidu_comp %>%
 
 ((pre-post)/pre)*100
 
-# Mean daily travellers pre restrictions (23 days)
+# Percentage change in mean no. daily travellers from 23 days pre restrictions to 23 days post restrictions (S2)
+pre2 <- baidu_comp %>% 
+  filter(restrict_day >= -22 & restrict_day <= 0) %>% 
+  mutate(b_mean20 = mean(baidu_index19)) %>% 
+  mutate(trav20 = b_mean20*50000) %>% 
+  select(trav20) %>% 
+  pull() %>% 
+  first()
+
+post2 <- baidu_comp %>% 
+  filter(restrict_day >= 1 & restrict_day <= 23) %>% 
+  mutate(b_mean20 = mean(baidu_index19)) %>% 
+  mutate(trav20 = b_mean20*50000) %>% 
+  select(trav20) %>% 
+  pull() %>% 
+  first()
+
+((pre2-post2)/pre2)*100
+
+# Mean daily travellers pre restrictions (23 days) S1
 baidu_comp %>% 
   filter(restrict_day >= -22 & restrict_day <= 0) %>% 
   mutate(trav20 = baidu_index20*50000) %>% 
@@ -64,7 +83,7 @@ baidu_comp %>%
          lower_ci = mean - qt(1 - (0.05 / 2), n - 1) * se,
          upper_ci = mean + qt(1 - (0.05 / 2), n - 1) * se)
 
-# Mean daily travellers post restrictions (23 days)
+# Mean daily travellers post restrictions (23 days) S1
 baidu_comp %>% 
   filter(restrict_day >= 1 & restrict_day <= 23) %>% 
   mutate(trav20 = baidu_index20*50000) %>% 
@@ -76,6 +95,29 @@ baidu_comp %>%
          lower_ci = mean - qt(1 - (0.05 / 2), n - 1) * se,
          upper_ci = mean + qt(1 - (0.05 / 2), n - 1) * se)
 
+# Mean daily travellers pre restrictions (23 days) S2
+baidu_comp %>% 
+  filter(restrict_day >= -22 & restrict_day <= 0) %>% 
+  mutate(trav19 = baidu_index19*50000) %>% 
+  select(trav19) %>% 
+  summarise(mean = mean(trav19, na.rm = TRUE),
+            sd = sd(trav19, na.rm = TRUE),
+            n = n()) %>%
+  mutate(se = sd / sqrt(n),
+         lower_ci = mean - qt(1 - (0.05 / 2), n - 1) * se,
+         upper_ci = mean + qt(1 - (0.05 / 2), n - 1) * se)
+
+# Mean daily travellers post restrictions (23 days) S2
+baidu_comp %>% 
+  filter(restrict_day >= 1 & restrict_day <= 23) %>% 
+  mutate(trav19 = baidu_index19*50000) %>% 
+  select(trav19) %>% 
+  summarise(mean = mean(trav19, na.rm = TRUE),
+            sd = sd(trav19, na.rm = TRUE),
+            n = n()) %>%
+  mutate(se = sd / sqrt(n),
+         lower_ci = mean - qt(1 - (0.05 / 2), n - 1) * se,
+         upper_ci = mean + qt(1 - (0.05 / 2), n - 1) * se)
 
 # Number of travellers leaving in the 5 days post restrictions
 baidu_comp %>% 
