@@ -222,6 +222,7 @@ summarise_proj <- function(data,cumulative) {
     data %>% 
       cumulate() %>% 
       as.data.frame(long = T) %>%
+      lazy_dt() %>% 
       group_by(date) %>%
       summarise(
         inc_mean = mean(incidence),
@@ -231,11 +232,13 @@ summarise_proj <- function(data,cumulative) {
         inc_0.75 = quantile(probs = 0.75, incidence),
         inc_0.975 = quantile(probs = 0.975, incidence)
       ) %>%
-      mutate(date = as.Date(date))
+      mutate(date = as.Date(date)) %>% 
+      as.data.frame()
   }
   else{
     data %>% 
       as.data.frame(long = T) %>%
+      lazy_dt() %>%
       group_by(date) %>%
       summarise(
         inc_mean = mean(incidence),
@@ -245,23 +248,22 @@ summarise_proj <- function(data,cumulative) {
         inc_0.75 = quantile(probs = 0.75, incidence),
         inc_0.975 = quantile(probs = 0.975, incidence)
       ) %>%
-      mutate(date = as.Date(date))
+      mutate(date = as.Date(date)) %>% 
+      as.data.frame()
   }
   
 }
 
 summarise_projections <- function(df,cumulative){
 trav <-  df %>%
-  ungroup() %>%
-  select(-c(row_id,data)) %>% 
-  group_by(sim,trav,after_restrictions) %>%
+  select(-c(row_id)) %>% 
+  group_by(sim,trav,after_restrictions) %>% 
   nest() %>% 
   mutate(proj=future_map(.f=flatten,data)) %>% 
   mutate(add_proj=future_map(.f=merge_add_projections,proj)) %>% 
   ungroup() %>% 
   select(-c(data,proj,sim)) %>% 
-  group_by(trav,after_restrictions) %>%
-  nest() %>% 
+  nest(trav,after_restrictions) %>% 
   mutate(proj=future_map(.f=flatten,data)) %>% 
   mutate(merged_proj=future_map(.f=merge_projections,proj)) %>% 
   mutate(sum_proj=future_pmap(.f=summarise_proj,.l=list(merged_proj,cumulative=cumulative))) %>% 
@@ -269,7 +271,8 @@ trav <-  df %>%
   separate(col = trav, into = c("travel_restrictions","chunyun"),sep=", ",remove=T) %>% 
   unnest(cols=sum_proj) 
 
-return(trav)}
+return(trav)
+}
 
 
 summarise_imports <- function(data){
@@ -284,6 +287,18 @@ summarise_imports <- function(data){
 
 before_after_fun <- function(data){
   ifelse(data$date[1]<as.Date("2020-01-23"),"Prior to Jan 23rd","Post Jan 23rd")
+}
+
+n_local_inf_date <- function(df,column,n_inf){
+  df %>% 
+    group_by(PYNAME,Reff,k,chunyun,travel_restrictions,date) %>% 
+    summarise_at(vars(inc_mean,inc_median,inc_0.025,inc_0.25,inc_0.75, inc_0.975),funs(sum)) %>% 
+    filter(Reff=="2.2",travel_restrictions=="Travel restrictions",chunyun=="Chunyun") %>% 
+    group_by(PYNAME,k) %>% 
+    arrange("column")%>%
+    filter("column">="n_inf") %>% 
+    slice(1)%>% 
+    dplyr::select(PYNAME,date)
 }
 
 gh_waffle <- function(data, pal = "D", dir = -1){

@@ -11,10 +11,6 @@ pacman::p_load(tidyverse,
 
 source("scripts/utils.R")
 
-plan(multiprocess)
-
-
-
 all_china <- readRDS("data/china_shp.rds") %>% st_as_sf() %>% filter(lvl=="prf")
 five_cities <- readRDS("data/china_shp.rds") %>% 
   st_as_sf() %>%
@@ -31,18 +27,28 @@ lims <- st_bbox(all_china)
 
 pal3 <- colorspace::qualitative_hcl(3, palette = "Dark 2")
 ggplot()+
-  geom_sf(data=world,fill="grey70",colour="white")+
-  geom_sf(data=all_china,colour="white",fill=pal3[3],alpha=0.5)+
-  geom_sf(data=five_cities,aes(fill=epicentre),colour="white",show.legend=FALSE,size=1)+
+  geom_sf(data=world,fill="grey80",colour="white")+
+  geom_sf(data=world %>% filter(CNTRY_NAME=="China"),colour="white",fill="grey80",size=2)+
+  geom_sf(data=all_china,colour="white",fill="grey80")+
+  geom_sf(data=five_cities,aes(fill=epicentre),colour="white",show.legend=FALSE)+
   geom_sf(data=five_cities_labels,colour="black",show.legend=FALSE,size=2)+
-  ggsflabel::geom_sf_text_repel(data=five_cities,aes(label=stringr::word(PYNAME)), 
+  ggsflabel::geom_sf_label_repel(data=five_cities,aes(label=stringr::word(PYNAME)), 
                                 nudge_x = c(5,10,0,-10,10)/2, nudge_y = c(5,5,5,-5,-5)/2,
                                 seed = 10)+
   scale_fill_manual(values=rev(pal3[1:2]))+
   theme_void()+
-  coord_sf(xlim=c(lims$xmin,lims$xmax),ylim=c(lims$ymin,lims$ymax))+
+  coord_sf(xlim=c(lims$xmin,lims$xmax),ylim=c(lims$ymin,lims$ymax))
+
 ggsave(
   filename = "output/map.png",
+  width = 297,
+  height = 210,
+  dpi = 320,
+  units = "mm"
+)
+
+ggsave(
+  filename = "output/map.pdf",
   width = 297,
   height = 210,
   dpi = 320,
