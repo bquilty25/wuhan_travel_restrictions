@@ -3,7 +3,7 @@
 
 *Contributors: Billy J. Quilty<sup>†</sup>, Charlie Diamond<sup>†</sup>, Yang Liu, Hamish Gibbs, Timothy W. Russell, Christopher I. Jarvis, Kiesha Prem, Carl A.B. Pearson, Samuel Clifford, Stefan Flasche, Centre for the Mathematical Modelling of Infectious Diseases COVID-19 Working Group, Petra Klepac<sup>^</sup>, Rosalind M. Eggo<sup>^</sup>, Mark Jit<sup>^</sup>*
   
-  *Correspondence to: billy.quilty@lshtm.ac.uk* 
+  *Correspondence to: charlie.diamond@lshtm.ac.uk* 
   
   *<sup>†</sup> authors contributed equally* 
   
