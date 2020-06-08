@@ -170,34 +170,54 @@ mean_si=4.7
 sd_si=2.9
 
 si <- distcrete("lnorm",
-                 meanlog=log(mean_si),
-                 sdlog=log(sd_si),
-                 interval = 1, 
-                 w = 0)
+                meanlog=log(mean_si),
+                sdlog=log(sd_si),
+                interval = 1,
+                w = 0)
 
-bp_rt_fun <- function(df,Reff){
+mean_alt_si <- 7.5
+sd_alt_si <- 3.4
+
+cv <- sd_alt_si / mean_alt_si
+params <- gamma_mucv2shapescale(mean_alt_si, cv)
+
+si2 <- distcrete("gamma", 
+                    shape = params$shape,
+                    scale = params$scale,
+                    interval = 1, w = 0)
+
+bp_rt_fun <- function(df,Reff,alt_si,k){
 
   i <- incidence(df$date)
   if (i$dates[1]<as.Date("2020-01-23")){
   proj <- project(i, 
-                  R = c(2.5,Reff), 
+                  R = c(2.2,Reff), 
                   model="negbin", 
-                  size=0.54, 
-                  si = si,
+                  size=k, 
+                  si = if(alt_si==TRUE){si2}else{si},
+                  #si=si,
                   time_change = as.numeric(as.Date("2020-01-23")-i$dates[1]),
-                  n_days = 182.5, 
-                  n_sim = 2)[-1,1] #remove first row (imported) and take first sim
+                  n_days = as.numeric(as.Date("2020-02-07")-i$dates[1]), 
+                  n_sim = 1)
   proj 
   }
   else{
     proj <- project(i, 
                     R = c(Reff), 
                     model="negbin", 
-                    size=0.54, 
-                    si = si,
-                    n_days = 182.5, 
-                    n_sim = 2)[-1,1]  #remove first row (imported) and take first sim
+                    size=k, 
+                    si = if(alt_si==TRUE){si2}else{si},
+                    #si=si,
+                    n_days = as.numeric(as.Date("2020-02-07")-i$dates[1]), 
+                    n_sim = 1)
     proj
+  }
+  
+  if(sum(proj)>0){
+    proj
+  }
+  else{
+    proj <- NA
   }
     
   return(proj)
@@ -222,32 +242,51 @@ summarise_proj <- function(data,cumulative) {
     data %>% 
       cumulate() %>% 
       as.data.frame(long = T) %>%
-      lazy_dt() %>% 
+      lazy_dt() %>%
       group_by(date) %>%
       summarise(
-        inc_mean = mean(incidence),
-        inc_median = quantile(probs = 0.5, incidence),
-        inc_0.025 = quantile(probs = 0.025, incidence),
-        inc_0.25 = quantile(probs = 0.25, incidence),
-        inc_0.75 = quantile(probs = 0.75, incidence),
-        inc_0.975 = quantile(probs = 0.975, incidence)
+        # inc_mean = mean(incidence),
+         inc_0.1 = quantile(probs = 0.1, incidence),
+         inc_0.2 = quantile(probs = 0.2, incidence),
+         inc_0.3 = quantile(probs = 0.3, incidence),
+         inc_0.4 = quantile(probs = 0.4, incidence),
+         inc_0.5 = quantile(probs = 0.5, incidence),
+         inc_0.6 = quantile(probs = 0.6, incidence),
+         inc_0.7 = quantile(probs = 0.7, incidence),
+         inc_0.8 = quantile(probs = 0.8, incidence),
+         inc_0.9 = quantile(probs = 0.9, incidence),
+        # inc_0.025 = quantile(probs = 0.025, incidence),
+        # inc_0.25 = quantile(probs = 0.25, incidence),
+        # inc_0.75 = quantile(probs = 0.75, incidence),
+        # inc_0.975 = quantile(probs = 0.975, incidence)
       ) %>%
+      lazy_dt() %>% 
       mutate(date = as.Date(date)) %>% 
       as.data.frame()
   }
   else{
     data %>% 
       as.data.frame(long = T) %>%
-      lazy_dt() %>%
+      lazy_dt() %>% 
       group_by(date) %>%
       summarise(
-        inc_mean = mean(incidence),
-        inc_median = quantile(probs = 0.5, incidence),
-        inc_0.025 = quantile(probs = 0.025, incidence),
-        inc_0.25 = quantile(probs = 0.25, incidence),
-        inc_0.75 = quantile(probs = 0.75, incidence),
-        inc_0.975 = quantile(probs = 0.975, incidence)
+        inc_0.1 = quantile(probs = 0.1, incidence),
+        inc_0.2 = quantile(probs = 0.2, incidence),
+        inc_0.3 = quantile(probs = 0.3, incidence),
+        inc_0.4 = quantile(probs = 0.4, incidence),
+        inc_0.5 = quantile(probs = 0.5, incidence),
+        inc_0.6 = quantile(probs = 0.6, incidence),
+        inc_0.7 = quantile(probs = 0.7, incidence),
+        inc_0.8 = quantile(probs = 0.8, incidence),
+        inc_0.9 = quantile(probs = 0.9, incidence),
+        # inc_mean = mean(incidence),
+        # inc_median = quantile(probs = 0.5, incidence),
+        # inc_0.025 = quantile(probs = 0.025, incidence),
+        # inc_0.25 = quantile(probs = 0.25, incidence),
+        # inc_0.75 = quantile(probs = 0.75, incidence),
+        # inc_0.975 = quantile(probs = 0.975, incidence)
       ) %>%
+      lazy_dt() %>% 
       mutate(date = as.Date(date)) %>% 
       as.data.frame()
   }
@@ -255,28 +294,35 @@ summarise_proj <- function(data,cumulative) {
 }
 
 summarise_projections <- function(df,cumulative){
-trav <-  df %>%
-  select(-c(row_id)) %>% 
-  group_by(sim,trav,after_restrictions) %>% 
-  nest() %>% 
-  mutate(proj=future_map(.f=flatten,data)) %>% 
-  mutate(add_proj=future_map(.f=merge_add_projections,proj)) %>% 
-  ungroup() %>% 
-  select(-c(data,proj,sim)) %>% 
-  nest(trav,after_restrictions) %>% 
-  mutate(proj=future_map(.f=flatten,data)) %>% 
-  mutate(merged_proj=future_map(.f=merge_projections,proj)) %>% 
-  mutate(sum_proj=future_pmap(.f=summarise_proj,.l=list(merged_proj,cumulative=cumulative))) %>% 
-  select(trav,after_restrictions,sum_proj) %>% 
-  separate(col = trav, into = c("travel_restrictions","chunyun"),sep=", ",remove=T) %>% 
-  unnest(cols=sum_proj) 
-
-return(trav)
-}
+  trav <-  df %>% 
+    lazy_dt() %>% 
+    ungroup() %>%
+    select(-row_id) %>% 
+    #group_by(sim,trav,after_restrictions) %>%
+    as.data.table() %>% 
+    dt_nest(sim,trav,after_restrictions) %>% 
+    lazy_dt() %>% 
+    mutate(proj=future_map(.f=flatten,data)) %>% 
+    mutate(add_proj=future_map(.f=merge_add_projections,proj)) %>% 
+    ungroup() %>% 
+    select(-c(data,proj,sim)) %>% 
+    dt_nest(trav,after_restrictions) %>% 
+    lazy_dt() %>% 
+    mutate(proj=future_map(.f=flatten,data)) %>% 
+    mutate(merged_proj=future_map(.f=merge_projections,proj)) %>% 
+    mutate(sum_proj=future_pmap(.f=summarise_proj,
+                                .l=list(merged_proj,cumulative=cumulative))) %>% 
+    select(trav,after_restrictions,sum_proj) %>% 
+    dt_unnest(sum_proj) %>% 
+    as.data.frame() %>% 
+    separate(col = trav, into = c("travel_restrictions","chunyun"),sep=", ",remove=T)  
+  
+  return(trav)}
 
 
 summarise_imports <- function(data){
   data %>% 
+    lazy_dt() %>% 
   summarise(n_daily_imports_mean = mean(n_daily_imports),
           n_daily_imports_median = quantile(probs = 0.5, n_daily_imports),
           n_daily_imports_0.025 = quantile(probs = 0.025, n_daily_imports),
@@ -285,43 +331,9 @@ summarise_imports <- function(data){
           n_daily_imports_0.975 = quantile(probs = 0.975, n_daily_imports))
 }
 
-before_after_fun <- function(data){
-  ifelse(data$date[1]<as.Date("2020-01-23"),"Prior to Jan 23rd","Post Jan 23rd")
-}
-
-n_local_inf_date <- function(df,column,n_inf){
+imports_outbreak_prob <- function(){
   df %>% 
-    group_by(PYNAME,Reff,k,chunyun,travel_restrictions,date) %>% 
-    summarise_at(vars(inc_mean,inc_median,inc_0.025,inc_0.25,inc_0.75, inc_0.975),funs(sum)) %>% 
-    filter(Reff=="2.2",travel_restrictions=="Travel restrictions",chunyun=="Chunyun") %>% 
-    group_by(PYNAME,k) %>% 
-    arrange("column")%>%
-    filter("column">="n_inf") %>% 
-    slice(1)%>% 
-    dplyr::select(PYNAME,date)
-}
-
-gh_waffle <- function(data, pal = "D", dir = -1){
-  
-  p <- ggplot(data, aes(x = week, y = day, fill = hours)) +
-    scale_fill_viridis(name="Hours", 
-                       option = pal,  # Variable color palette
-                       direction = dir,  # Variable color direction
-                       na.value = "grey93",
-                       limits = c(0, max(data$hours))) +
-    geom_tile(color = "white", size = 0.4) +
-    facet_wrap("year", ncol = 1) +
-    scale_x_continuous(
-      expand = c(0, 0),
-      breaks = seq(1, 52, length = 12),
-      labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")) +
-    theme_tufte(base_family = "Helvetica") +
-    theme(axis.title = element_blank(),
-          axis.ticks = element_blank(),
-          legend.position = "bottom",
-          legend.key.width = unit(1, "cm"),
-          strip.text = element_text(hjust = 0.01, face = "bold", size = 12))
-  
-  print(p)
+    mutate(cum_imports=cumsum(n_daily_imports)) %>% 
+    mutate(outbreak=future_pmap_dbl(.f=rpois,.l=list(lambda=cum_imports*0.413,n=1)),
+         cum_prob_outbreak=outbreak>0) 
 }
