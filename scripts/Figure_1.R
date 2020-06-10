@@ -1,31 +1,31 @@
-################################ 
+#########################################################################################################################
 # Code for creating Figure 1 - Total domestic travel outflow from Wuhan under 4 travel pattern scenarios. 
 # For study "The Effect of Inter-City Travel Restrictions on Geographical Spread of COVID-19: Evidence from Wuhan, China"
-# Written by Charlie Diamond & Billy Quilty
-################################
+# Written by Charlie Diamond & Billy J Quilty
+#########################################################################################################################
 
-### Required packages
-pacman::p_load(tidyverse,lubridate, tsibble)
+### Load packages ----
+pacman::p_load(tidyverse,lubridate, tsibble, colorspace)
 
 ### Read in Baidu overall index mobilty leaving Wuhan 2020 & 2019 (Scenario 1 & 2)
 baidu <- read_csv("data/scaling_baidu_mobility_index.csv") %>% 
   mutate(Date = dmy(Date))
 
-### Mean of non-chunyun index 2019 - weekday
+### Mean of non-chunyun index 2019 - weekday ----
 dayweek19 <- baidu %>% 
   filter(Date >= as.Date("2020-01-06") & Date <= as.Date("2020-01-10") | Date >= as.Date("2020-02-08") ) %>% 
   mutate(day = wday(Date)) %>% 
   group_by(day) %>% 
   summarise(mean19= mean(baidu_index19, na.rm = TRUE))
 
-### Mean of non-chunyun post-shutdown index 2020 - weekday                  
+### Mean of non-chunyun post-shutdown index 2020 - weekday ----                
 dayweek20 <- baidu %>% 
   filter(Date >= as.Date("2020-02-08")) %>% 
   mutate(day = wday(Date)) %>% 
   group_by(day) %>% 
   summarise(mean20= mean(baidu_index20, na.rm = TRUE))
 
-### Estimate total baidu index leaving Wuhan for all 4 travel scenarios, both observed and hypothetical. Out of date ranges also estimated.
+### Estimate total baidu index leaving Wuhan for all 4 travel scenarios, both observed and hypothetical. Out of date ranges also estimated. ----
 baidu_comp <- baidu %>% 
   tidyr::complete(Date= seq.Date(min(as.Date("2019-11-23")), max(baidu$Date), by= "day")) %>% 
   mutate(day = wday(Date)) %>% 
@@ -38,7 +38,7 @@ baidu_comp <- baidu %>%
   mutate(baidu_index20non = if_else(Date > as.Date("2020-01-23"), baidu_index20, baidu_index19non)) %>% 
   mutate(restrict_day = c(-61:0, 1:52))
 
-### Create plot
+### Create plot ----
 baidu_comp %>%
   pivot_longer(cols = c("baidu_index20", "baidu_index19", "baidu_index19non", "baidu_index20non"), names_to = "year", values_to = "index") %>%
   mutate(year = factor(year, levels = rev(c("baidu_index20","baidu_index19", "baidu_index20non", "baidu_index19non")))) %>%
