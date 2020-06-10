@@ -1,3 +1,10 @@
+################################ 
+# Code for estimating the number of daily arrivals by city
+# for study "The Effect of Inter-City Travel Restrictions on Geographical Spread of COVID-19: Evidence from Wuhan, China" 
+# written by Billy J Quilty
+################################
+
+### Load packages ----
 pacman::p_load(tidyverse,
                furrr,
                sf,
@@ -12,24 +19,26 @@ pacman::p_load(tidyverse,
                tidyfast,
                data.table)
 
+### Load utility functions ----
 source("scripts/utils.R")
 
+### Parallel processing options ----
 plan(multiprocess)
 options('future.globals.maxSize' = 1014*4*1024^2)
 
-top_cities <- read_csv("data/codes_20.csv")
-
+### Load data ----
 four_cities <- readRDS("data/china_shp.rds") %>% 
   st_as_sf() %>%
   filter(lvl=="prf") %>% 
   st_drop_geometry() %>% 
   filter(PYNAME=="Beijing Shi"|PYNAME=="Chongqing Shi"|PYNAME=="Hangzhou Shi"|PYNAME=="Shenzhen Shi")
 
-
 wuhan_prev <- readRDS("data/kucharski_model_output.rds") %>% filter(date<as.Date("2020-02-07"))
 
+### Define arrivals function ----
 arrivals_fun <- function(cnty,nsim) {
   
+  # Estimate volume of travel from Wuhan to prefecture with cnty_code `cnty` and define scenarios
   prf <- trav_from_wuhan(cnty, 50000) %>%
     as.data.table() %>% 
     dt_pivot_longer(cols = c(trav_19, trav_20, trav_19non, trav_20non),
@@ -55,6 +64,7 @@ arrivals_fun <- function(cnty,nsim) {
     as.data.frame() %>% 
     unite("trav",c("trav_rest","chunyun"),remove=F,sep=", ")
   
+  # Join to daily Wuhan prevalence estimates
   travel <- prf %>% 
     lazy_dt() %>% 
     select(date, trav,chunyun, trav_rest,  value, -day) %>%
@@ -62,7 +72,7 @@ arrivals_fun <- function(cnty,nsim) {
     left_join(wuhan_prev, by = "date") %>%
     filter(!is.na(E_and_I)) 
   
-  
+  # Calculate number of daily imports according to travel volume and prevalence in Wuhan
   inf <- tidyr::crossing(sim = 1:nsim,
                          travel %>% as.data.frame()) %>% 
     lazy_dt() %>% 
@@ -81,6 +91,7 @@ arrivals_fun <- function(cnty,nsim) {
   return(inf)
 }
 
+### Run function for the 4 cities of interest ----
 tic()
 imports <- four_cities %>% 
   lazy_dt() %>% 
@@ -90,6 +101,7 @@ imports <- four_cities %>%
                                 .f = arrivals_fun))
 toc()
 
+### Summarise simulations ----
 imp_sum <- imports %>% 
   as.data.table() %>% 
   dt_unnest(arrivals) %>% 
@@ -105,6 +117,7 @@ imp_sum <- imports %>%
   mutate(after_restrictions=ifelse(date>as.Date("2020-01-23"),"Arrived after restrictions","Arrived prior to restrictions")) %>% 
   as.data.frame() 
   
+### Daily number of infected arrivals plot ----
 p1 <- imp_sum %>% 
   ggplot() +
   geom_ribbon(aes(x = date, ymin = n_daily_imports_0.025,ymax=n_daily_imports_0.975, fill=trav_rest),alpha=0.25)+
@@ -135,9 +148,7 @@ p1 <- imp_sum %>%
         panel.spacing = unit(8, "mm")
   )
 
-
-
-
+### Cumulative number of infected arrivals plot ----
 p2 <- imp_sum %>% 
   group_by(PYNAME,trav_rest,chunyun) %>% 
   mutate_at(vars("n_daily_imports_mean":"n_daily_imports_0.975"),cumsum) %>% 
@@ -170,6 +181,7 @@ ggplot() +
         panel.spacing = unit(8, "mm")
   )
 
+### Combine and save plots to file ----
 p1 / p2 + 
     plot_annotation(tag_levels = c("A", "B")) +
     plot_layout(guides = "collect", ncol = 1) &
@@ -196,238 +208,25 @@ ggsave(
   units = "mm"
 )
 
-#max daily imports
+### Max daily imports, Chunyun ----
 imp_sum %>% 
   filter(trav_rest=="Cordon sanitaire imposed",chunyun=="Chunyun") %>% 
   pivot_longer("n_daily_imports_mean":"n_daily_imports_0.975") %>% 
   group_by(PYNAME,trav_rest,chunyun,after_restrictions,name) %>% 
   filter(value==max(value)) %>% mutate(value=as.integer(value)) %>% 
-  View()
+  print(n=Inf)
 
-#max daily imports
+### Max daily imports, Non-Chunyun ----
 imp_sum %>% 
   filter(trav_rest=="Cordon sanitaire imposed",chunyun=="Non-Chunyun") %>% 
   pivot_longer("n_daily_imports_mean":"n_daily_imports_0.975") %>% 
   group_by(PYNAME,trav_rest,chunyun,after_restrictions,name) %>% 
   filter(value==max(value)) %>% mutate(value=as.integer(value)) %>% 
-  View()
+  print(n=Inf)
 
-# cumulative cases on date of travel restrctions
+#### Cumulative cases on date of travel restrictions in baseline scenario 1 ----
 imp_sum %>% 
   group_by(PYNAME,trav_rest,chunyun) %>% 
   mutate_at(vars("n_daily_imports_mean":"n_daily_imports_0.975"),cumsum) %>% 
   filter(trav_rest=="Cordon sanitaire imposed",chunyun=="Chunyun",date==as.Date("2020-01-23")) %>% 
-  View()
-
-# 
-#   imports %>%
-#   dt_unnest(arrivals) %>%
-#   dt_nest(PYNAME, trav_rest, chunyun) %>%
-#   mutate(imports = future_map(.x = data, .f = summarise_imports, .progress = T)) %>%
-#   dt_unnest(imports) %>%
-#   as.data.frame()
-#   summarise()
-#   ggplot() +
-#   geom_ribbon(aes(x = date, ymin = n_daily_imports_0.025,ymax=n_daily_imports_0.975, linetype = trav_rest),alpha=0.25)+
-#   geom_line(aes(x = date, y = n_daily_imports_median, linetype = trav_rest)) +
-#   facet_nested(PYNAME ~ chunyun) +
-#   scale_x_date(limits = c(NA_Date_, as.Date("2020-02-01")))
-# 
-# infected_arrivals <- imports %>%
-#   dt_unnest(arrivals) %>%
-#   dt_nest(PYNAME, date, trav_rest, chunyun) %>%
-#   mutate(imports = future_map(.x = data, .f = summarise_imports,.progress = T)) %>%
-#   dt_unnest(imports) %>%
-#   mutate(
-#     week = tsibble::yearweek(date),
-#     weekday = factor(weekdays(date, T), levels = rev(
-#       c("Mon", "Tue", "Wed", "Thu",
-#         "Fri", "Sat", "Sun")
-#     )),
-#     day = ifelse(weekday == "Mon", day(date), NA)
-#   ) %>% as.data.frame() %>% 
-#   ggplot(aes(x = week, y = weekday)) +
-#   scale_fill_viridis_c(
-#     name = "Estimated median number of daily \ninfected arrivals from Wuhan",
-#     option = "plasma",
-#     na.value = "grey93",
-#     begin = 0.1,
-#     end = 0.8,
-#     breaks = c(2, 4, 6, 8),
-#     guide = guide_coloursteps(show.limits = T, 
-#                               barwidth = unit(5, "cm"),
-#                               title.position = "top")
-#   ) +
-#   geom_tile(aes(fill = as.integer(n_daily_imports_median)), size = 0.4, colour =
-#               "white") +
-#   geom_text(aes(label = day), colour = "white", size = 1.5) +
-#   geom_point(
-#     data = . %>% filter(
-#       date == as.Date("2020-01-23"),
-#       trav_rest == "Cordon sanitaire imposed"
-#     ),
-#     aes(
-#       x = week,
-#       y = weekday,
-#       fill = NA_real_,
-#       colour = "23 Jan 2020 - cordon sanitaire imposed"
-#     ),
-#     size = 1.5,
-#     pch = 16
-#   ) +
-#   scale_colour_manual(
-#     values = "white",
-#     name = "",
-#     guide = guide_legend(override.aes = list(pch = 1, colour = "black"))
-#   ) +
-#   facet_nested(stringr::word(PYNAME) ~ chunyun + trav_rest) +
-#   scale_x_date() +
-#   coord_fixed(ratio = 7) +
-#   #theme_tufte(base_family = NULL) +
-#   theme(
-#     axis.title = element_blank(),
-#     axis.ticks = element_blank(),
-#     legend.position = "bottom",
-#     legend.box = "vertical",
-#     legend.box.just = "left"
-#   )
-# 
-# # ggsave(
-# #   filename = "output/Reff_sens_analysis/infected_arrivals_plot_v2.png",
-# #   width = 297,
-# #   height = 210,
-# #   dpi = 320,
-# #   units = "mm"
-# # )
-# 
-# 
-# 
-# 
-# 
-# ### index by four cities ----
-# index_plot <- function(cnty, name) {
-#   prf <- trav_from_wuhan(cnty, 50000) %>%
-#     pivot_longer(cols = c(trav_19, trav_20, trav_19non, trav_20non),
-#                  names_to = "trav") %>%
-#     mutate(
-#       trav_rest = case_when(
-#         trav == "trav_19" ~ "No cordon sanitaire",
-#         trav == "trav_20" ~ "Cordon sanitaire imposed",
-#         trav == "trav_19non" ~ "No cordon sanitaire",
-#         trav == "trav_20non" ~ "Cordon sanitaire imposed",
-#         TRUE ~ NA_character_
-#       )
-#     ) %>%
-#     mutate(
-#       chunyun = case_when(
-#         trav == "trav_19" ~ "Chunyun",
-#         trav == "trav_20" ~ "Chunyun",
-#         trav == "trav_19non" ~ "Non-Chunyun",
-#         trav == "trav_20non" ~ "Non-Chunyun",
-#         TRUE ~ NA_character_
-#       )
-#     ) %>%
-#     unite("trav",
-#           c("trav_rest", "chunyun"),
-#           remove = F,
-#           sep = ", ")
-#   
-#   travel <- prf %>%
-#     select(date, trav_rest, chunyun, value,-day) %>%
-#     mutate(wuhan_pop = 12894578) %>%
-#     left_join(inc, by = "date") %>%
-#     filter(!is.na(cases))
-#   return(travel)
-# }
-# 
-# all_arrivals <- four_cities %>%
-#   select(PYNAME, CNTY_CODE) %>%
-#   mutate(index = future_pmap(.f = index_plot, 
-#                              .l = list(cnty = CNTY_CODE, name = PYNAME))) %>%
-#   unnest() %>%
-#   mutate(
-#     week = tsibble::yearweek(date),
-#     weekday = factor(weekdays(date, T), levels = rev(
-#       c("Mon", "Tue", "Wed", "Thu",
-#         "Fri", "Sat", "Sun")
-#     )),
-#     day = ifelse(weekday == "Mon", day(date), NA)
-#   ) %>%
-#   #mutate(value=na_if(value,0)) %>%
-#   ggplot(aes(x = week, y = weekday)) +
-#   scale_fill_viridis_c(
-#     name = "Estimated number of daily \narrivals from Wuhan",
-#     option = "viridis",
-#     breaks = c(2000, 4000, 6000),
-#     guide = guide_coloursteps(
-#       show.limits = T,
-#       barwidth = unit(5, "cm"),
-#       title.position = "top"
-#     ),
-#     na.value = "grey93"
-#   ) +
-#   geom_tile(aes(fill = value), size = 0.4, colour = "white") +
-#   geom_text(aes(label = day), colour = "white", size = 1.5) +
-#   geom_point(
-#     data = . %>% filter(
-#       date == as.Date("2020-01-23"),
-#       trav_rest == "Cordon sanitaire imposed"
-#     ),
-#     aes(
-#       x = week,
-#       y = weekday,
-#       fill = NA_real_,
-#       colour = "23 Jan 2020 - cordon sanitaire imposed"
-#     ),
-#     size = 1.5,
-#     pch = 16
-#   ) +
-#   scale_colour_manual(
-#     values = "white",
-#     name = "",
-#     guide = guide_legend(override.aes = list(pch = 1, colour = "black"))
-#   ) +
-#   facet_nested(stringr::word(PYNAME) ~ chunyun + trav_rest) +
-#   scale_x_date() +
-#   coord_fixed(ratio = 7) +
-#   theme_tufte(base_family = NULL) +
-#   theme(
-#     axis.title = element_blank(),
-#     axis.ticks = element_blank(),
-#     legend.position = "bottom",
-#     legend.box = "vertical",
-#     legend.box.just = "left"
-#   )
-# 
-# # ggsave(
-# #   filename = "output/Reff_sens_analysis/lambda_plot_v2.png",
-# #   width = 297,
-# #   height = 210,
-# #   dpi = 320,
-# #   units = "mm"
-# # )
-# 
-# all_arrivals / infected_arrivals + 
-#   plot_annotation(tag_levels = c("A", "B")) +
-#   plot_layout(guides = "collect", ncol = 1) &
-#   theme(
-#     legend.position = 'bottom',
-#     legend.justification = "centre",
-#     legend.box = "horizontal"
-#   )
-# # 
-# ggsave(
-#   filename = "output/arrivals_plot_v5.png",
-#   width = 210,
-#   height = 297,
-#   dpi = 320,
-#   units = "mm"
-# )
-# 
-# ggsave(
-#   filename = "output/arrivals_plot_v5.pdf",
-#   width = 210,
-#   height = 297,
-#   dpi = 320,
-#   units = "mm"
-# )
+  print(n=Inf)

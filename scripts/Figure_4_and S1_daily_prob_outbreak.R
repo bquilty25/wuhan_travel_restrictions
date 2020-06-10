@@ -1,3 +1,10 @@
+################################ 
+# Code for estimating the daily probability of an outbreak
+# for study "The Effect of Inter-City Travel Restrictions on Geographical Spread of COVID-19: Evidence from Wuhan, China" 
+# written by Billy J Quilty
+################################
+
+### Load packages ----
 pacman::p_load(tidyverse,
                furrr,
                sf,
@@ -10,30 +17,25 @@ pacman::p_load(tidyverse,
                stringr,
                dtplyr,
                tidyfast,
-               data.table,
-               profvis,lubridate,htmlTable,
-               ggforce)
+               data.table)
 
+### Load utility functions ----
 source("scripts/utils.R")
 
+### Parallel processing options ----
 plan(multiprocess)
+options('future.globals.maxSize' = 1014*4*1024^2)
 
-top_cities <- read_csv("data/codes_20.csv")
-
-prf_pop <- read.csv("data/prf_pop_2018.csv")
-
-prf_sf <- readRDS("data/china_shp.rds") %>% 
-  st_as_sf() %>%
-  filter(lvl=="prf")
-
-prf <- readRDS("data/china_shp.rds") %>% 
+### Load data ----
+four_cities <- readRDS("data/china_shp.rds") %>% 
   st_as_sf() %>%
   filter(lvl=="prf") %>% 
   st_drop_geometry() %>% 
-  select(PYNAME,CNTY_CODE)
+  filter(PYNAME=="Beijing Shi"|PYNAME=="Chongqing Shi"|PYNAME=="Hangzhou Shi"|PYNAME=="Shenzhen Shi")
 
 wuhan_prev <- readRDS("data/kucharski_model_output.rds") %>% filter(date<as.Date("2020-02-07"))
 
+### Probability of outbreak functions ----
 outbreak_constraint <- function(p, R, k) { (1+(R/k)*p)^(-k)-1+p }
 
 outbreak_p <- Vectorize(function(R, k) { 
@@ -42,6 +44,7 @@ outbreak_p <- Vectorize(function(R, k) {
 
 outbreak_threshold <- function(c,p){(log(1-c))/(log(1-p))}
 
+### Function to calculate number of imports and daily probability of an outbreak ----
 daily_inf_imports <- safely(function(cnty,nsim,R,k,O) {
   
   prf <- trav_from_wuhan(cnty, 50000) %>%
@@ -101,12 +104,13 @@ daily_inf_imports <- safely(function(cnty,nsim,R,k,O) {
   return(inf)
 })
 
+### Run model ----
 gc()
 tic()
 inf_arrivals_all <- crossing(R = 2.2,
                          k = 0.1,
                          O = 0.95,
-                         prf %>% slice(1:100) ) %>% 
+                         prf) %>% 
   lazy_dt() %>% 
   mutate(inc=future_pmap(
     .l = list(
@@ -119,8 +123,11 @@ inf_arrivals_all <- crossing(R = 2.2,
   as.data.frame() 
 toc()
 
+### Save data ----
 saveRDS(inf_arrivals_all,file="output/inf_arrivals_all.rds")
-inf_arrivals_all <- read_rds("output/inf_arrivals_all.rds")
+#inf_arrivals_all <- read_rds("output/inf_arrivals_all.rds")
+
+### Summarise results ----
 gc()
 delay_interval_plot_data <- inf_arrivals_all %>% 
   mutate(no_error = map_lgl(.f = ~ is.null(.x$error),.x=inc)) %>% 
@@ -153,19 +160,9 @@ delay_interval_plot_data <- inf_arrivals_all %>%
   as.data.frame() 
 
 saveRDS(delay_interval_plot_data,"output/delay_interval_data_all.rds")
-delay_interval_plot_data <- readRDS("output/delay_interval_data_all.rds")
+#delay_interval_plot_data <- readRDS("output/delay_interval_data_all.rds")
 
-# delay_interval_plot_data %>% 
-#   mutate(travel_restrictions=fct_recode(travel_restrictions,"Cordon sanitaire imposed"="Travel restrictions","No cordon sanitaire"="No travel restrictions")) %>% 
-#   filter(PYNAME=="Beijing Shi"|PYNAME=="Chongqing Shi"|PYNAME=="Hangzhou Shi"|PYNAME=="Shenzhen Shi") %>%
-#   select(PYNAME,travel_restrictions,k,O,chunyun,date_50,date_2.5,date_97.5) %>% 
-#   mutate_at(vars(date_50:date_97.5),funs(format(.,"%d %b"))) %>% 
-#   unite("CI",c(date_2.5:date_97.5),sep=" - ") %>% 
-#   mutate(CI=paste0("(",CI,")")) %>% 
-#   unite("estimate and 95% CI", c(date_50,CI),sep=" ") %>% 
-#   pivot_wider(names_from = c("chunyun","travel_restrictions"),values_from = `estimate and 95% CI`) %>% 
-#   htmlTable(rnames=F)
-
+### Plot for four cities of interest (Figure 4) ----
 delay_interval_plot_data %>% 
        mutate(travel_restrictions=fct_recode(travel_restrictions,"Cordon sanitaire imposed"="Travel restrictions","No cordon sanitaire"="No travel restrictions")) %>% 
   filter(PYNAME=="Beijing Shi"|PYNAME=="Chongqing Shi"|PYNAME=="Hangzhou Shi"|PYNAME=="Shenzhen Shi") %>%
@@ -210,7 +207,7 @@ ggsave(
   units = "mm"
 )
 
-
+#### Plot for all prefectures (Figure S1) ----
 plot_data <- delay_interval_plot_data %>% 
   na.omit() %>% 
   mutate(region_id=as.factor(str_sub(CNTY_CODE,1,1))) %>% 
